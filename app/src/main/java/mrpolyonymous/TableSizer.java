@@ -113,7 +113,7 @@ public class TableSizer implements AutoCloseable {
         } catch (InterruptedException e) {
             // not really any graceful way to handle this,
             // dump it to stderr and hope the program terminates
-            System.err.println("Interrupted whil shutting down executor service");
+            System.err.println("Interrupted while shutting down executor service");
             e.printStackTrace();
         }
     }

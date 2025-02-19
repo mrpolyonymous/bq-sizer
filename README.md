@@ -6,7 +6,7 @@ estimating the logical size of each column in each partition in partitioned tabl
 
 ## Why?
 
-BigQuery's table metadata will tell you how big a table in terms of number of bytes stored,
+BigQuery's table metadata will tell you how big a table is in terms of number of bytes stored,
 but it won't tell you how many logical bytes a column occupies. This data is also not currently
 captured in any `INFORMATION_SCHEMA` view. Sometimes you want to know how much data is
 in each column to see how your data is distributed.
@@ -33,7 +33,7 @@ If running outside of GCP this typically means having the Google Cloud SDK/gclou
 
 A Java Development Kit (JDK) version 21 or later is required to compile and run
 the program. These can be installed by your operating system's package manager,
-or free versions can be downloaded from [Adoptium](https://adoptium.net/)
+or free versions can be downloaded from [Adoptium](https://adoptium.net/).
 
 The gradle wrapper is used to build the application and install it. The instructions
 below show a default installation but the [gradle application plugin](https://docs.gradle.org/current/userguide/application_plugin.html)
@@ -48,7 +48,7 @@ export JAVA_HOME=/path/to/jdk
 ./gradlew clean build installDist
 
 # Run the application
-build/install/bq-sizer --tables=bigquery-public-data.samples.shakespeare
+app/build/install/app/bin/app --tables=bigquery-public-data.samples.shakespeare
 ```
 
 ```text
@@ -71,7 +71,7 @@ Total size from metadata: 6,432,064 bytes
 ### Command line options
 
 All command line options are optional. If no arguments are specifed all tables
-in all dataset in the default project are scanned.
+in all datasets in the default project are scanned.
 
 | Option | Description |
 | ------ | ----------- |
@@ -81,11 +81,11 @@ in all dataset in the default project are scanned.
 | --datasetPrefix=arg | Only scan tables in datasets with name beginning with this prefix |
 | --tables=arg |  Comma-separated list of BigQuery tables to size. Can be fully-qualifed `project.dataset.table` format, `dataset.table` format in which case the `--project` option is required, or just `table`, in which case all datasets are scanned for that table name |
 | --sizePartitions | Find column sizes for individual partitions as well as the entire table |
-| --minPartitionTime=arg | When sizing individual time-based partitions, the earliest partition (inclusive) to size. Can be an ISO 8601 data time like `2023-12-31T00:00:00Z` or just the data part like `2023-12-31`. Times that do not match the partition boundary exactly are truncated to the appropriate boundary. |
+| --minPartitionTime=arg | When sizing individual time-based partitions, the earliest partition (inclusive) to size. Can be an ISO 8601 date and time like `2023-12-31T00:00:00Z` or just the date part like `2023-12-31`. Times that do not match the partition boundary exactly are truncated to the appropriate boundary. |
 | --maxPartitionTime=arg | When sizing individual time-based partitions, the latest partition (exclusive) to size. Same syntax as `--minPartitionTime`. |
 | --maxTables=arg | Maximum number of tables to size. Use this to speed up the sizing process when testing. Default is to size all tables found |
 | --maxColumns=arg | Maximum number of columns to size per table. Use this to speed up the sizing process when testing. Default is to size all columns |
-| --maxThreads=arg | Maximum threads/simultaneous queries to run. |
+| --maxThreads=arg | Maximum threads/simultaneous queries to run. Defaults to number of available CPU cores. More threads is typically faster but too many threads may run into issues with query quota limits. |
 | --noOutput | Skip saving output to files |
 | --outputPrefix=arg | Prefix to give to output files. Default is `tablesize` |
 | -h,--help | Show help |
@@ -124,16 +124,19 @@ app/build/install/app/bin/app --tables=myproject.mydataset.orders --sizePartitio
 
 Unless the `--noOutput` option is specified the results of the sizing process are saved to files in newline-delimited JSON, and gzip compressed. The files will have the following names:
 
-1. tablesize-table-analysis-<timestamp>.json.gz
-2. tablesize-column-analysis-<timestamp>.json.gz
-2. tablesize-partitions-analysis-<timestamp>.json.gz, only created when the `--sizePartitions` option is specified
+1. `tablesize`-table-analysis-`timestamp`.json.gz
+2. `tablesize`-column-analysis-`timestamp`.json.gz
+2. `tablesize`-partitions-analysis-`timestamp`.json.gz, only created when the `--sizePartitions` option is specified
 
-The timestamp will be of the form year-month-day-hour-minute-second. The `tablesize` prefix in the name can be changed 
+The `timestamp` will be of the form year-month-day-hour-minute-second. The `tablesize` prefix in the name can be changed 
 by specifying the `--outputPrefix` option
 
 ### Output schema
 
+The output files conform to a schema that can easily be imported back into BigQuery for analysis and visualization.
+
 ```sql
+-- change project, dataset and table name as appropriate
 CREATE TABLE IF NOT EXISTS myproject.mydataset.column_data (
   result_time TIMESTAMP OPTIONS(description="Time at which results were discovered"),
   project STRING OPTIONS(description="GCP project ID that contained the BigQuery dataset"),
@@ -159,6 +162,32 @@ FROM myproject.mydataset.column_data
 WHERE partition_decorator IS NOT NULL AND partition_decorator != "__NULL__" AND partition_decorator != "__UNPARTITIONED__"
 ```
 
+Upload output data file to a Cloud Storage bucket via a shell:
+
+```sh
+# change bucket and file names as appropriate
+gsutil cp tablesize-partition-analysis-2025-01-31-12-00-00.json.gz gs://my-bucket/
+```
+
+Load the data file into the table in BigQuery via SQL commands:
+
+```sql
+-- change project, dataset, table and bucket names as appropriate
+LOAD DATA INTO myproject.mydataset.column_data(
+ result_time TIMESTAMP,
+ project STRING,
+ dataset STRING,
+ `table` STRING,
+ column_name STRING,
+ column_size INT64,
+ partition_decorator STRING
+ )
+ FROM FILES (
+   format='JSON',
+   compression='GZIP',
+   uris = ['gs://my-bucket/tablesize-partition-analysis-2025-01-31-12-00-00.json.gz']
+ )
+```
 
 ## Accuracy of results
 
