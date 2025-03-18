@@ -29,7 +29,12 @@ It's more complicated for partitioned tables but the general idea is the same.
 ## Running
 
 A default GCP project and application default credentials must be available.
-If running outside of GCP this typically means having the Google Cloud SDK/gcloud CLI installed.
+If running outside of GCP this typically means having the Google Cloud SDK/gcloud CLI installed,
+and set the default credentials by running
+
+```sh
+gcloud auth login --update-adc
+```
 
 A Java Development Kit (JDK) version 21 or later is required to compile and run
 the program. These can be installed by your operating system's package manager,
@@ -166,7 +171,7 @@ Upload output data file to a Cloud Storage bucket via a shell:
 
 ```sh
 # change bucket and file names as appropriate
-gsutil cp tablesize-partition-analysis-2025-01-31-12-00-00.json.gz gs://my-bucket/
+gcloud storage cp tablesize-partition-analysis-2025-01-31-12-00-00.json.gz gs://my-bucket/
 ```
 
 Load the data file into the table in BigQuery via SQL commands:
